@@ -1,7 +1,7 @@
 #include "loop_closure_detector.h"
 
 #include <iostream>
-#include "smmintrin.h"
+#include "libpopcnt.h"
 
 using namespace std;
 
@@ -48,13 +48,13 @@ namespace MILD
 			return;
 		}
 		hash_table_num = para_table_num;
-		entry_num_per_hash_table = pow(2, bits_per_substring);
+		entry_num_per_hash_table = (unsigned)pow(2, bits_per_substring);
 		buckets_num = entry_num_per_hash_table * hash_table_num;
 		max_unit_num_per_entry = input_max_num_per_entry;
 		distance_threshold = input_distance_threshold;
 
 		features_buffer = std::vector<mild_entry>(entry_num_per_hash_table * hash_table_num);
-		for (int i = 0; i < entry_num_per_hash_table * hash_table_num; i++)
+		for (unsigned i = 0; i < entry_num_per_hash_table * hash_table_num; i++)
 		{
 			features_buffer[i].clear();
 		}
@@ -62,7 +62,7 @@ namespace MILD
 		lut_feature_similarity = std::vector<float>(512);
 		for (int i = 0; i < 512; i++)
 		{
-			float hamming_distance = i;
+			int hamming_distance = i;
 			if (hamming_distance < 10)
 			{
 				hamming_distance = 10;
@@ -73,8 +73,7 @@ namespace MILD
 	int LoopClosureDetector::count_feature_in_database()
 	{
 		int database_feature_num = 0;
-		int database_size = features_descriptor.size();
-		for (int i = 0; i < database_size; i++)
+		for (unsigned i = 0; i < features_descriptor.size(); i++)
 		{
 			database_feature_num += features_descriptor[i].descriptor.rows;
 		}
@@ -95,7 +94,7 @@ namespace MILD
 			}
 		}
 		
-		int image_index = features_descriptor.size(); 
+		size_t image_index = features_descriptor.size(); 
 		std::vector<unsigned long> hash_entry_index = std::vector<unsigned long>(hash_table_num);
 
 		database_frame df;
@@ -107,9 +106,9 @@ namespace MILD
   			feature_indicator f;
 			f.image_index = image_index;
 			f.feature_index = feature_idx;
-			for (int hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
+			for (unsigned hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
 			{
-				int entry_pos = hash_table_id*entry_num_per_hash_table + hash_entry_index[hash_table_id];
+				unsigned entry_pos = hash_table_id*entry_num_per_hash_table + hash_entry_index[hash_table_id];
 				if (features_buffer[entry_pos].size() == 0 || 
 					(features_buffer[entry_pos].size() < DEFAULT_MAX_UNIT_NUM_PER_ENTRY &&
 					features_buffer[entry_pos].back().image_index != image_index))
@@ -119,20 +118,20 @@ namespace MILD
 			}
 		}
 		features_descriptor.push_back(df);
-		return features_descriptor.size();
+		return (int)features_descriptor.size();
 	}
 
     int LoopClosureDetector::calculate_hamming_distance_256bit(uint64_t * f1, uint64_t * f2)
 	{
-        int hamming_distance = (__builtin_popcountll(*(f1) ^ *(f2)) +
-            __builtin_popcountll(*(f1 + 1) ^ *(f2 + 1)) +
-            __builtin_popcountll(*(f1 + 2) ^ *(f2 + 2)) +
-            __builtin_popcountll(*(f1 + 3) ^ *(f2 + 3)));
+        uint64_t hamming_distance = (popcnt64(*(f1) ^ *(f2)) +
+			popcnt64(*(f1 + 1) ^ *(f2 + 1)) +
+			popcnt64(*(f1 + 2) ^ *(f2 + 2)) +
+			popcnt64(*(f1 + 3) ^ *(f2 + 3)));
 #if DEBUG_MODE_MILD
 		statistics_num_distance_calculation++;
 #endif 
 
-		return hamming_distance;
+		return (int)hamming_distance;
 	}
 
 	
@@ -152,7 +151,7 @@ namespace MILD
 		df.descriptor = desc;
 		features_descriptor.push_back(df);
 
-		int database_size = features_descriptor.size();
+		size_t database_size = features_descriptor.size();
 		score.clear();
 		score = std::vector<float>(database_size);
 		std::vector<float> feature_score = std::vector<float>(database_size);
@@ -161,7 +160,7 @@ namespace MILD
 			score[i] = 0;
 		}
 
-		int image_index = features_descriptor.size() - 1;
+		size_t image_index = features_descriptor.size() - 1;
 		std::vector<unsigned long> hash_entry_index = std::vector<unsigned long>(hash_table_num);
 
 		for (int feature_idx = 0; feature_idx < feature_num; feature_idx++)
@@ -176,7 +175,7 @@ namespace MILD
 			feature_indicator f;
 			f.image_index = image_index;
 			f.feature_index = feature_idx;
-			for (int hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
+			for (int hash_table_id = 0; hash_table_id < (int)hash_table_num; hash_table_id++)
 			{
 				int entry_pos = hash_table_id*entry_num_per_hash_table + hash_entry_index[hash_table_id];
 				if (features_buffer[entry_pos].size() == 0 ||
@@ -217,7 +216,7 @@ namespace MILD
 				score[cnt] += feature_score[cnt] / total_feature_energy * idf_freq;
 			}
 		}
-		return features_descriptor.size();
+		return (int)features_descriptor.size();
 	}
 
 	int LoopClosureDetector::query_database(cv::Mat desc, std::vector<float> &score)
@@ -225,7 +224,7 @@ namespace MILD
 		int feature_num = desc.rows;
 		int descriptor_length = desc.cols * 8;
 		int database_feature_num = count_feature_in_database();
-		int database_size = features_descriptor.size(); 
+		int database_size = (int)features_descriptor.size(); 
 		score.clear();
 		score = std::vector<float>(database_size);
 		std::vector<float> feature_score = std::vector<float>(database_size);
@@ -241,7 +240,7 @@ namespace MILD
 			unsigned int *data = desc.ptr<unsigned int>(feature_idx);
             uint64_t * f1 = desc.ptr<uint64_t>(feature_idx);
 			multi_index_hashing(hash_entry_index, data, hash_table_num, bits_per_substring);
-			for (int hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
+			for (int hash_table_id = 0; hash_table_id < (int)hash_table_num; hash_table_id++)
 			{
 				unsigned long entry_idx = hash_table_id*entry_num_per_hash_table + hash_entry_index[hash_table_id];
 				search_entry(f1, entry_idx, feature_score);
@@ -287,10 +286,10 @@ namespace MILD
 			feature_indicator &f = current_entry[i];
             uint64_t * f2 = (uint64_t *)features_descriptor[f.image_index].descriptor.data + f.feature_index * 4;
 			//features_descriptor[f.image_index].descriptor.ptr<unsigned __int64>(f.feature_index);
-            int hamming_distance =  (_mm_popcnt_u64(*(f1) ^ *(f2)) +
-                                                        _mm_popcnt_u64(*(f1 + 1) ^ *(f2 + 1)) +
-                                                        _mm_popcnt_u64(*(f1 + 2) ^ *(f2 + 2)) +
-                                                        _mm_popcnt_u64(*(f1 + 3) ^ *(f2 + 3)));// calculate_hamming_distance_256bit(f1, f2);
+            int hamming_distance =  (popcnt64(*(f1) ^ *(f2)) +
+				popcnt64(*(f1 + 1) ^ *(f2 + 1)) +
+				popcnt64(*(f1 + 2) ^ *(f2 + 2)) +
+				popcnt64(*(f1 + 3) ^ *(f2 + 3)));// calculate_hamming_distance_256bit(f1, f2);
 			if (hamming_distance < distance_threshold)
 			{
 				float similarity = lut_feature_similarity[hamming_distance];

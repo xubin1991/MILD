@@ -8,8 +8,6 @@
 
 #include "lightweight_vector.hpp"
 
-
-typedef int64_t __int64;
 namespace MILD
 {
 

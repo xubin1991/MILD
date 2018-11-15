@@ -1,8 +1,7 @@
-
 #include "sparse_match.h"
+#include "libpopcnt.h"
 #include "mild.hpp"
 #include <fstream>
-#include <immintrin.h>
 #include <list>
 #include <bitset>
 #include <time.h>
@@ -57,12 +56,12 @@ namespace MILD
 			return;
 		}
 		hash_table_num = input_hash_table_num;
-		entry_num_per_hash_table = pow(float(2), float(bits_per_substring));
+		entry_num_per_hash_table = (unsigned)pow(float(2), float(bits_per_substring));
 		buckets_num = entry_num_per_hash_table * hash_table_num;
 		distance_threshold = input_distance_threshold;
 
 		features_buffer = std::vector<sparse_match_entry>(entry_num_per_hash_table * hash_table_num);
-		for (int i = 0; i < entry_num_per_hash_table * hash_table_num; i++)
+		for (unsigned i = 0; i < entry_num_per_hash_table * hash_table_num; i++)
 		{
 			features_buffer[i].clear();
 		}
@@ -86,14 +85,14 @@ namespace MILD
 
 	int SparseMatcher::calculate_hamming_distance_256bit(uint64_t * f1, uint64_t * f2)
 	{
-		int hamming_distance = (__builtin_popcountll(*(f1) ^ *(f2)) +
-				__builtin_popcountll(*(f1 + 1) ^ *(f2 + 1)) +
-				__builtin_popcountll(*(f1 + 2) ^ *(f2 + 2)) +
-				__builtin_popcountll(*(f1 + 3) ^ *(f2 + 3)));
+		uint64_t hamming_distance = (popcnt64(*(f1) ^ *(f2)) +
+			popcnt64(*(f1 + 1) ^ *(f2 + 1)) +
+			popcnt64(*(f1 + 2) ^ *(f2 + 2)) +
+			popcnt64(*(f1 + 3) ^ *(f2 + 3)));
 #if DEBUG_MODE_MILD
 		statistics_num_distance_calculation++;
 #endif 
-		return hamming_distance;
+		return (int)hamming_distance;
 	}
 	void SparseMatcher::BFMatch(cv::Mat d2, cv::Mat d1, std::vector<cv::DMatch> &matches)
 	{
@@ -102,7 +101,6 @@ namespace MILD
 		int feature_f2_num = d2.rows;
 		cout << "f1 " << feature_f1_num << endl << "f2 " << feature_f2_num << endl;
 		unsigned short * delta_distribution = new unsigned short[feature_f1_num * feature_f2_num];
-		uint64_t current_descriptor[4];
 		for (int f1 = 0; f1 < feature_f1_num; f1++)
 		{
 			uint64_t *feature1_ptr = (d1.ptr<uint64_t>(f1));
@@ -152,9 +150,9 @@ namespace MILD
 		{
 			unsigned int *data = desc.ptr<unsigned int>(feature_idx);
 			multi_index_hashing(hash_entry_index, data, hash_table_num, bits_per_substring);
-			for (int hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
+			for (unsigned hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
 			{
-				int entry_pos = hash_table_id*entry_num_per_hash_table + hash_entry_index[hash_table_id];
+				unsigned entry_pos = hash_table_id*entry_num_per_hash_table + hash_entry_index[hash_table_id];
 				features_buffer[entry_pos].push_back(feature_idx);
 			}
 		}
@@ -179,7 +177,7 @@ namespace MILD
 			unsigned short best_corr_fid = 0;
 			uint64_t * f1 = desc.ptr<uint64_t>(feature_idx);
 			multi_index_hashing(hash_entry_index, data, hash_table_num, bits_per_substring);
-			for (int hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
+			for (unsigned hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
 			{
 				unsigned long entry_idx = hash_table_id*entry_num_per_hash_table + hash_entry_index[hash_table_id];
 				int conflict_num = features_buffer[entry_idx].size();
@@ -251,7 +249,7 @@ namespace MILD
 			uint64_t * f1 = (uint64_t *)desc.data + feature_idx * 4;
 			unsigned short min_distance = 256;
 			unsigned short best_corr_fid = 0;
-			for (int hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
+			for (unsigned hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
 			{
 				unsigned long entry_idx = hash_table_id*entry_num_per_hash_table + data[hash_table_id];
 				int conflict_num = features_buffer[entry_idx].size();
@@ -292,7 +290,7 @@ namespace MILD
 			Point2f query_feature = query_features[feature_idx].pt;
 			unsigned short min_distance = 256;
 			unsigned short best_corr_fid = 0;
-			for (int hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
+			for (unsigned hash_table_id = 0; hash_table_id < hash_table_num; hash_table_id++)
 			{
 				unsigned long entry_idx = hash_table_id*entry_num_per_hash_table + data[hash_table_id];
 				int conflict_num = features_buffer[entry_idx].size();

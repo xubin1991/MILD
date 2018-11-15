@@ -59,7 +59,7 @@ namespace MILD
 		unsigned int buckets_num;					// total entry num
 		unsigned int max_unit_num_per_entry;		// max num of features to store in each entry
 		std::vector<float> lut_feature_similarity;	//feature_similarity look up table based on hamming distance
-		float distance_threshold;					// pre-defined parameters for image similarity measurement
+		int distance_threshold;					// pre-defined parameters for image similarity measurement
 	};
 
 }
